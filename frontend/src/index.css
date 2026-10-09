@@ -1,0 +1,88 @@
+/* Pravas Rail design system. (Owner: Core Team)
+   Colours come from Indian railway life: cream ticket card stock, ICF carriage
+   blue, and the yellow of station nameboards. Use the tokens below through
+   Tailwind classes (bg-paper, text-ink, bg-signal ...). Never hard-code hex values
+   in components. */
+@import "tailwindcss";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource/big-shoulders-display/500";
+@import "@fontsource/big-shoulders-display/700";
+@import "@fontsource/big-shoulders-display/800";
+
+@theme {
+  /* surfaces */
+  --color-paper: #F2EBD9;          /* page background: ticket card stock */
+  --color-paper-raised: #FBF7EC;   /* panels, inputs */
+  --color-paper-sunk: #E8DEC6;     /* wells, hover, table stripes */
+  --color-line: #D3C6A6;           /* rules and borders */
+  --color-line-strong: #B9AA86;
+
+  /* ink */
+  --color-ink: #1B2440;            /* main text, top bar */
+  --color-ink-soft: #4F5672;       /* secondary text (passes 4.5:1 on paper) */
+
+  /* brand */
+  --color-carriage: #22407A;       /* primary actions and links */
+  --color-carriage-deep: #172C57;
+  --color-signal: #F2B632;         /* station nameboard yellow: ONLY for station boards */
+  --color-signal-deep: #C98E0E;
+
+  /* status, like railway signals */
+  --color-cnf: #2B6A43;   --color-cnf-bg: #DAE7D0;
+  --color-wl: #87550A;    --color-wl-bg: #F4E1B5;
+  --color-can: #9A3427;   --color-can-bg: #F1D4C9;
+  --color-pending: #3E4C7A; --color-pending-bg: #DCDFEC;
+
+  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Big Shoulders Display", "Arial Narrow", ui-sans-serif, sans-serif;
+
+  --radius-board: 3px;
+  --radius-panel: 10px;
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    font-size: 16px;
+    line-height: 1.55;
+    font-feature-settings: "tnum" 1;
+  }
+  h1, h2, h3 { @apply font-display text-ink; line-height: 1.05; letter-spacing: 0.005em; }
+  h1 { font-size: clamp(2.5rem, 6vw, 4.25rem); font-weight: 800; }
+  h2 { font-size: 2rem; font-weight: 700; }
+  h3 { font-size: 1.375rem; font-weight: 700; }
+  a { @apply text-carriage underline-offset-4; }
+  a:hover { @apply text-carriage-deep underline; }
+  ::selection { @apply bg-signal text-ink; }
+
+  :focus-visible {
+    outline: 2px solid var(--color-carriage);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+}
+
+@layer components {
+  /* A run of railway track: two rails with sleepers between them */
+  .track {
+    height: 14px;
+    border-top: 2px solid var(--color-ink);
+    border-bottom: 2px solid var(--color-ink);
+    background-image: repeating-linear-gradient(90deg, var(--color-line-strong) 0 3px, transparent 3px 14px);
+  }
+  /* Perforated edge used on the e-ticket */
+  .perforation {
+    height: 18px;
+    background:
+      radial-gradient(circle at 9px 9px, var(--color-paper) 6px, transparent 6.5px) 0 0 / 18px 18px repeat-x;
+  }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+}
