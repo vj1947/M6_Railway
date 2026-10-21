@@ -38,21 +38,34 @@ export async function stationBoard(req, res) {
 }
 
 export async function listRoutes(_req, res) {
-  return stub(res, OWNER, sample.routes);
+  const data = await service.findRoutes();
+  return ok(res, data);
 }
 
 export async function createRoute(req, res) {
-  requireFields(req.body, ['routeCode', 'routeName', 'originStationId', 'destinationStationId']);
-  return stub(res, OWNER, { routeId: 13, ...req.body }, { status: 201 });
+  requireFields(req.body, ['routeCode', 'originStationId', 'destinationStationId']);
+
+  const data = await service.createRoute(req.body);
+  return ok(res, data, { status: 201 });
 }
 
 export async function addRouteStops(req, res) {
   requireFields(req.body, ['stops']);
-  return stub(res, OWNER, { routeId: toId(req.params.id, 'route id'), stops: req.body.stops });
+  const routeId = toId(req.params.id, 'route id');
+
+  const data = await service.addRouteStops(routeId, req.body.stops);
+  return ok(res, data);
 }
 
 export async function getSchedule(req, res) {
-  return stub(res, OWNER, { ...sample.schedule, trainId: toId(req.params.id, 'train id') });
+  const trainId = toId(req.params.id, 'train id');
+  const data = await service.getSchedule(trainId);
+
+  if (!data) {
+    throw notFound('TRAIN_NOT_FOUND', 'Train not found');
+  }
+
+  return ok(res, data);
 }
 
 export async function setSchedule(req, res) {
