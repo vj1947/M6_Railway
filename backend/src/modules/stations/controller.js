@@ -96,13 +96,24 @@ export async function generateRuns(req, res) {
 
 export async function updateRunStatus(req, res) {
   requireFields(req.body, ['status']);
-  return stub(res, OWNER, { runId: toId(req.params.runId, 'run id'), status: req.body.status });
+  const runId = toId(req.params.runId, 'run id');
+
+  const data = await service.updateRunStatus(runId, req.body.status);
+
+  if (!data) {
+    throw notFound('RUN_NOT_FOUND', 'Train run not found');
+  }
+
+  return ok(res, data);
 }
 
 export async function listFareRules(_req, res) {
-  return stub(res, OWNER, sample.fareRules);
+  const data = await service.listFareRules();
+  return ok(res, data);
 }
 
 export async function updateFareRule(req, res) {
-  return stub(res, OWNER, { classId: toId(req.params.classId, 'class id'), ...req.body });
+  const classId = toId(req.params.classId, 'class id');
+  const data = await service.updateFareRule(classId, req.body);
+  return ok(res, data);
 }

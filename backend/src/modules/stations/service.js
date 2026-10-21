@@ -215,3 +215,79 @@ export async function generateRuns(trainId, fromDate, toDate) {
 
   return { trainId, created, skippedExisting, skippedNotRunning };
 }
+
+export async function updateRunStatus(runId, status) {
+  const result = await query(
+    `UPDATE train_runs
+        SET status = ?
+      WHERE run_id = ?`,
+    [status, runId]
+  );
+
+  if (result.affectedRows === 0) return null;
+
+  return { runId, status };
+}
+
+export async function listFareRules() {
+  const items = await query(
+    `SELECT cc.class_id               AS classId,
+            cc.class_code             AS classCode,
+            fr.per_km_rate            AS perKmRate,
+            fr.min_distance_km        AS minDistanceKm,
+            fr.reservation_charge     AS reservationCharge,
+            fr.superfast_charge       AS superfastCharge,
+            fr.gst_percent            AS gstPercent,
+            fr.min_cancellation_charge AS minCancellationCharge
+       FROM fare_rules fr
+       JOIN coach_classes cc ON fr.class_id = cc.class_id
+      ORDER BY cc.class_id`
+  );
+
+  return { items };
+}
+
+export async function updateFareRule(classId, fields) {
+  const updates = [];
+  const params = [];
+
+  if (fields.perKmRate !== undefined) {
+    updates.push('per_km_rate = ?');
+    params.push(fields.perKmRate);
+  }
+  if (fields.minDistanceKm !== undefined) {
+    updates.push('min_distance_km = ?');
+    params.push(fields.minDistanceKm);
+  }
+  if (fields.reservationCharge !== undefined) {
+    updates.push('reservation_charge = ?');
+    params.push(fields.reservationCharge);
+  }
+  if (fields.superfastCharge !== undefined) {
+    updates.push('superfast_charge = ?');
+    params.push(fields.superfastCharge);
+  }
+  if (fields.gstPercent !== undefined) {
+    updates.push('gst_percent = ?');
+    params.push(fields.gstPercent);
+  }
+  if (fields.minCancellationCharge !== undefined) {
+    updates.push('min_cancellation_charge = ?');
+    params.push(fields.minCancellationCharge);
+  }
+
+  if (updates.length === 0) {
+    return { classId, ...fields };
+  }
+
+  params.push(classId);
+
+  await query(
+    `UPDATE fare_rules
+        SET ${updates.join(', ')}
+      WHERE class_id = ?`,
+    params
+  );
+
+  return { classId, ...fields };
+}
