@@ -23,7 +23,9 @@ export async function createStation(req, res) {
   if (!/^[A-Z]{2,6}$/.test(req.body.stationCode)) {
     throw badRequest('INVALID_STATION_CODE', 'Station code must be 2 to 6 capital letters');
   }
-  return stub(res, OWNER, { stationId: 41, ...req.body, isActive: true }, { status: 201 });
+
+  const data = await service.createStation(req.body);
+  return ok(res, data, { status: 201 });
 }
 
 export async function updateStation(req, res) {
@@ -36,44 +38,82 @@ export async function stationBoard(req, res) {
 }
 
 export async function listRoutes(_req, res) {
-  return stub(res, OWNER, sample.routes);
+  const data = await service.findRoutes();
+  return ok(res, data);
 }
 
 export async function createRoute(req, res) {
-  requireFields(req.body, ['routeCode', 'routeName', 'originStationId', 'destinationStationId']);
-  return stub(res, OWNER, { routeId: 13, ...req.body }, { status: 201 });
+  requireFields(req.body, ['routeCode', 'originStationId', 'destinationStationId']);
+
+  const data = await service.createRoute(req.body);
+  return ok(res, data, { status: 201 });
 }
 
 export async function addRouteStops(req, res) {
   requireFields(req.body, ['stops']);
-  return stub(res, OWNER, { routeId: toId(req.params.id, 'route id'), stops: req.body.stops });
+  const routeId = toId(req.params.id, 'route id');
+
+  const data = await service.addRouteStops(routeId, req.body.stops);
+  return ok(res, data);
 }
 
 export async function getSchedule(req, res) {
-  return stub(res, OWNER, { ...sample.schedule, trainId: toId(req.params.id, 'train id') });
+  const trainId = toId(req.params.id, 'train id');
+  const data = await service.getSchedule(trainId);
+
+  if (!data) {
+    throw notFound('TRAIN_NOT_FOUND', 'Train not found');
+  }
+
+  return ok(res, data);
 }
 
 export async function setSchedule(req, res) {
   requireFields(req.body, ['stops']);
-  return stub(res, OWNER, { trainId: toId(req.params.id, 'train id'), stops: req.body.stops });
+  const trainId = toId(req.params.id, 'train id');
+
+  const data = await service.setSchedule(trainId, req.body.stops);
+  return ok(res, data);
 }
 
 export async function generateRuns(req, res) {
   requireFields(req.body, ['trainId', 'fromDate', 'toDate']);
   toDate(req.body.fromDate, 'fromDate');
   toDate(req.body.toDate, 'toDate');
-  return stub(res, OWNER, { trainId: req.body.trainId, created: 31, skippedExisting: 0, skippedNotRunning: 0 }, { status: 201 });
+
+  const data = await service.generateRuns(
+    req.body.trainId,
+    req.body.fromDate,
+    req.body.toDate
+  );
+
+  if (!data) {
+    throw badRequest('INVALID_TRAIN', 'Train not found or inactive');
+  }
+
+  return ok(res, data, { status: 201 });
 }
 
 export async function updateRunStatus(req, res) {
   requireFields(req.body, ['status']);
-  return stub(res, OWNER, { runId: toId(req.params.runId, 'run id'), status: req.body.status });
+  const runId = toId(req.params.runId, 'run id');
+
+  const data = await service.updateRunStatus(runId, req.body.status);
+
+  if (!data) {
+    throw notFound('RUN_NOT_FOUND', 'Train run not found');
+  }
+
+  return ok(res, data);
 }
 
 export async function listFareRules(_req, res) {
-  return stub(res, OWNER, sample.fareRules);
+  const data = await service.listFareRules();
+  return ok(res, data);
 }
 
 export async function updateFareRule(req, res) {
-  return stub(res, OWNER, { classId: toId(req.params.classId, 'class id'), ...req.body });
+  const classId = toId(req.params.classId, 'class id');
+  const data = await service.updateFareRule(classId, req.body);
+  return ok(res, data);
 }

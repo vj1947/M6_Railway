@@ -31,3 +31,263 @@ export async function findStations({ q, activeOnly, limit, offset }) {
     items: items.map((s) => ({ ...s, isActive: Boolean(s.isActive) })),
   };
 }
+
+export async function createStation({ stationCode, stationName, city, state, zone }) {
+  const result = await query(
+    `INSERT INTO stations (station_code, station_name, city, state, zone, is_active)
+     VALUES (?, ?, ?, ?, ?, TRUE)`,
+    [stationCode.toUpperCase(), stationName, city, state, zone || null]
+  );
+
+  return {
+    stationId: result.insertId,
+    stationCode: stationCode.toUpperCase(),
+    stationName,
+    city,
+    state,
+    zone: zone || null,
+    isActive: true,
+  };
+}
+
+export async function findRoutes() {
+  const items = await query(
+    `SELECT r.route_id     AS routeId,
+            r.route_code   AS routeCode,
+            r.route_name   AS routeName,
+            orig.station_code AS origin,
+            dest.station_code AS destination,
+            (SELECT COUNT(*) FROM route_stops rs WHERE rs.route_id = r.route_id) AS stops,
+            (SELECT COALESCE(MAX(distance_from_origin_km), 0) FROM route_stops rs WHERE rs.route_id = r.route_id) AS distanceKm
+       FROM routes r
+       JOIN stations orig ON r.origin_station_id = orig.station_id
+       JOIN stations dest ON r.destination_station_id = dest.station_id
+      ORDER BY r.route_code`
+  );
+
+  return { items };
+}
+
+export async function createRoute({ routeCode, routeName, originStationId, destinationStationId }) {
+  const result = await query(
+    `INSERT INTO routes (route_code, route_name, origin_station_id, destination_station_id)
+     VALUES (?, ?, ?, ?)`,
+    [routeCode.toUpperCase(), routeName || null, originStationId, destinationStationId]
+  );
+
+  return {
+    routeId: result.insertId,
+    routeCode: routeCode.toUpperCase(),
+    routeName: routeName || null,
+    originStationId,
+    destinationStationId,
+  };
+}
+
+export async function addRouteStops(routeId, stops) {
+  // Clear existing stops for this route before re-inserting
+  await query(`DELETE FROM route_stops WHERE route_id = ?`, [routeId]);
+
+  // Insert each stop with its sequence and distance from origin
+  for (const s of stops) {
+    await query(
+      `INSERT INTO route_stops (route_id, stop_sequence, station_id, distance_from_origin_km)
+       VALUES (?, ?, ?, ?)`,
+      [routeId, s.stopSeq, s.stationId, s.distanceKm || 0]
+    );
+  }
+
+  return { routeId, stops };
+}
+
+export async function getSchedule(trainId) {
+  const train = await queryOne(
+    `SELECT train_id AS trainId, train_number AS trainNumber, train_name AS trainName
+       FROM trains
+      WHERE train_id = ?`,
+    [trainId]
+  );
+
+  if (!train) return null;
+
+  const stops = await query(
+    `SELECT ts.stop_sequence AS stopSeq,
+            s.station_code   AS stationCode,
+            s.station_name   AS stationName,
+            TIME_FORMAT(ts.arrival_time, '%H:%i')   AS arrival,
+            TIME_FORMAT(ts.departure_time, '%H:%i') AS departure,
+            ts.day_offset + 1                       AS day,
+            ts.distance_from_origin_km              AS distanceKm
+       FROM train_schedules ts
+       JOIN stations s ON ts.station_id = s.station_id
+      WHERE ts.train_id = ?
+      ORDER BY ts.stop_sequence`,
+    [trainId]
+  );
+
+  return {
+    trainId: train.trainId,
+    trainNumber: train.trainNumber,
+    trainName: train.trainName,
+    stops,
+  };
+}
+
+export async function setSchedule(trainId, stops) {
+  // Remove existing schedule entries for this train
+  await query(`DELETE FROM train_schedules WHERE train_id = ?`, [trainId]);
+
+  // Insert updated schedule entries
+  for (const s of stops) {
+    await query(
+      `INSERT INTO train_schedules (train_id, stop_sequence, arrival_time, departure_time, day_offset, distance_from_origin_km, station_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        trainId,
+        s.stopSeq,
+        s.arrival || null,
+        s.departure || null,
+        s.dayOffset || 0,
+        s.distanceKm || 0,
+        s.stationId
+      ]
+    );
+  }
+
+  return { trainId, stops };
+}
+
+export async function generateRuns(trainId, fromDate, toDate) {
+  const train = await queryOne(
+    `SELECT train_id AS trainId, running_days AS runningDays, is_active AS isActive
+       FROM trains
+      WHERE train_id = ?`,
+    [trainId]
+  );
+
+  if (!train || !train.isActive) return null;
+
+  let created = 0;
+  let skippedExisting = 0;
+  let skippedNotRunning = 0;
+
+  // Convert runningDays string/JSON into array of active day names (e.g. ['MON', 'TUE'])
+  let activeDays = [];
+  try {
+    activeDays = typeof train.runningDays === 'string'
+      ? JSON.parse(train.runningDays)
+      : (train.runningDays || []);
+  } catch (e) {
+    activeDays = [];
+  }
+
+  const dayMap = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+  let start = new Date(fromDate);
+  const end = new Date(toDate);
+
+  while (start <= end) {
+    const dateStr = start.toISOString().split('T')[0];
+    const dayName = dayMap[start.getUTCDay()];
+
+    if (activeDays.length > 0 && !activeDays.includes(dayName)) {
+      skippedNotRunning++;
+    } else {
+      const existing = await queryOne(
+        `SELECT run_id FROM train_runs WHERE train_id = ? AND run_date = ?`,
+        [trainId, dateStr]
+      );
+
+      if (existing) {
+        skippedExisting++;
+      } else {
+        await query(
+          `INSERT INTO train_runs (train_id, run_date, status)
+           VALUES (?, ?, 'SCHEDULED')`,
+          [trainId, dateStr]
+        );
+        created++;
+      }
+    }
+
+    start.setDate(start.getDate() + 1);
+  }
+
+  return { trainId, created, skippedExisting, skippedNotRunning };
+}
+
+export async function updateRunStatus(runId, status) {
+  const result = await query(
+    `UPDATE train_runs
+        SET status = ?
+      WHERE run_id = ?`,
+    [status, runId]
+  );
+
+  if (result.affectedRows === 0) return null;
+
+  return { runId, status };
+}
+
+export async function listFareRules() {
+  const items = await query(
+    `SELECT cc.class_id               AS classId,
+            cc.class_code             AS classCode,
+            fr.per_km_rate            AS perKmRate,
+            fr.min_distance_km        AS minDistanceKm,
+            fr.reservation_charge     AS reservationCharge,
+            fr.superfast_charge       AS superfastCharge,
+            fr.gst_percent            AS gstPercent,
+            fr.min_cancellation_charge AS minCancellationCharge
+       FROM fare_rules fr
+       JOIN coach_classes cc ON fr.class_id = cc.class_id
+      ORDER BY cc.class_id`
+  );
+
+  return { items };
+}
+
+export async function updateFareRule(classId, fields) {
+  const updates = [];
+  const params = [];
+
+  if (fields.perKmRate !== undefined) {
+    updates.push('per_km_rate = ?');
+    params.push(fields.perKmRate);
+  }
+  if (fields.minDistanceKm !== undefined) {
+    updates.push('min_distance_km = ?');
+    params.push(fields.minDistanceKm);
+  }
+  if (fields.reservationCharge !== undefined) {
+    updates.push('reservation_charge = ?');
+    params.push(fields.reservationCharge);
+  }
+  if (fields.superfastCharge !== undefined) {
+    updates.push('superfast_charge = ?');
+    params.push(fields.superfastCharge);
+  }
+  if (fields.gstPercent !== undefined) {
+    updates.push('gst_percent = ?');
+    params.push(fields.gstPercent);
+  }
+  if (fields.minCancellationCharge !== undefined) {
+    updates.push('min_cancellation_charge = ?');
+    params.push(fields.minCancellationCharge);
+  }
+
+  if (updates.length === 0) {
+    return { classId, ...fields };
+  }
+
+  params.push(classId);
+
+  await query(
+    `UPDATE fare_rules
+        SET ${updates.join(', ')}
+      WHERE class_id = ?`,
+    params
+  );
+
+  return { classId, ...fields };
+}
