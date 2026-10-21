@@ -70,7 +70,10 @@ export async function getSchedule(req, res) {
 
 export async function setSchedule(req, res) {
   requireFields(req.body, ['stops']);
-  return stub(res, OWNER, { trainId: toId(req.params.id, 'train id'), stops: req.body.stops });
+  const trainId = toId(req.params.id, 'train id');
+
+  const data = await service.setSchedule(trainId, req.body.stops);
+  return ok(res, data);
 }
 
 export async function generateRuns(req, res) {

@@ -132,3 +132,27 @@ export async function getSchedule(trainId) {
     stops,
   };
 }
+
+export async function setSchedule(trainId, stops) {
+  // Remove existing schedule entries for this train
+  await query(`DELETE FROM train_schedules WHERE train_id = ?`, [trainId]);
+
+  // Insert updated schedule entries
+  for (const s of stops) {
+    await query(
+      `INSERT INTO train_schedules (train_id, stop_sequence, arrival_time, departure_time, day_offset, distance_from_origin_km, station_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        trainId,
+        s.stopSeq,
+        s.arrival || null,
+        s.departure || null,
+        s.dayOffset || 0,
+        s.distanceKm || 0,
+        s.stationId
+      ]
+    );
+  }
+
+  return { trainId, stops };
+}
