@@ -23,7 +23,9 @@ export async function createStation(req, res) {
   if (!/^[A-Z]{2,6}$/.test(req.body.stationCode)) {
     throw badRequest('INVALID_STATION_CODE', 'Station code must be 2 to 6 capital letters');
   }
-  return stub(res, OWNER, { stationId: 41, ...req.body, isActive: true }, { status: 201 });
+
+  const data = await service.createStation(req.body);
+  return ok(res, data, { status: 201 });
 }
 
 export async function updateStation(req, res) {

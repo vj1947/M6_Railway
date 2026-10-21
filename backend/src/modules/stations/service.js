@@ -31,3 +31,21 @@ export async function findStations({ q, activeOnly, limit, offset }) {
     items: items.map((s) => ({ ...s, isActive: Boolean(s.isActive) })),
   };
 }
+
+export async function createStation({ stationCode, stationName, city, state, zone }) {
+  const result = await query(
+    `INSERT INTO stations (station_code, station_name, city, state, zone, is_active)
+     VALUES (?, ?, ?, ?, ?, TRUE)`,
+    [stationCode.toUpperCase(), stationName, city, state, zone || null]
+  );
+
+  return {
+    stationId: result.insertId,
+    stationCode: stationCode.toUpperCase(),
+    stationName,
+    city,
+    state,
+    zone: zone || null,
+    isActive: true,
+  };
+}
