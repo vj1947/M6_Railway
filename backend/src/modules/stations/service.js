@@ -156,3 +156,62 @@ export async function setSchedule(trainId, stops) {
 
   return { trainId, stops };
 }
+
+export async function generateRuns(trainId, fromDate, toDate) {
+  const train = await queryOne(
+    `SELECT train_id AS trainId, running_days AS runningDays, is_active AS isActive
+       FROM trains
+      WHERE train_id = ?`,
+    [trainId]
+  );
+
+  if (!train || !train.isActive) return null;
+
+  let created = 0;
+  let skippedExisting = 0;
+  let skippedNotRunning = 0;
+
+  // Convert runningDays string/JSON into array of active day names (e.g. ['MON', 'TUE'])
+  let activeDays = [];
+  try {
+    activeDays = typeof train.runningDays === 'string'
+      ? JSON.parse(train.runningDays)
+      : (train.runningDays || []);
+  } catch (e) {
+    activeDays = [];
+  }
+
+  const dayMap = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+  let start = new Date(fromDate);
+  const end = new Date(toDate);
+
+  while (start <= end) {
+    const dateStr = start.toISOString().split('T')[0];
+    const dayName = dayMap[start.getUTCDay()];
+
+    if (activeDays.length > 0 && !activeDays.includes(dayName)) {
+      skippedNotRunning++;
+    } else {
+      const existing = await queryOne(
+        `SELECT run_id FROM train_runs WHERE train_id = ? AND run_date = ?`,
+        [trainId, dateStr]
+      );
+
+      if (existing) {
+        skippedExisting++;
+      } else {
+        await query(
+          `INSERT INTO train_runs (train_id, run_date, status)
+           VALUES (?, ?, 'SCHEDULED')`,
+          [trainId, dateStr]
+        );
+        created++;
+      }
+    }
+
+    start.setDate(start.getDate() + 1);
+  }
+
+  return { trainId, created, skippedExisting, skippedNotRunning };
+}

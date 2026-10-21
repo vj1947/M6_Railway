@@ -80,7 +80,18 @@ export async function generateRuns(req, res) {
   requireFields(req.body, ['trainId', 'fromDate', 'toDate']);
   toDate(req.body.fromDate, 'fromDate');
   toDate(req.body.toDate, 'toDate');
-  return stub(res, OWNER, { trainId: req.body.trainId, created: 31, skippedExisting: 0, skippedNotRunning: 0 }, { status: 201 });
+
+  const data = await service.generateRuns(
+    req.body.trainId,
+    req.body.fromDate,
+    req.body.toDate
+  );
+
+  if (!data) {
+    throw badRequest('INVALID_TRAIN', 'Train not found or inactive');
+  }
+
+  return ok(res, data, { status: 201 });
 }
 
 export async function updateRunStatus(req, res) {
