@@ -95,9 +95,10 @@ docs/          requirements, API reference, prompts
 | `npm run dev` | Starts the API and the website together |
 | `npm run build` | Builds the website for the final demo |
 
-## Troubleshooting
+### Troubleshooting
 
-- **"Database NOT connected"** when the backend starts: check `DB_USER` and `DB_PASSWORD` in `backend/.env`, and that MySQL is running.
-- **"Cannot reach the server"** on the website: the backend is not running. Start it with `npm run dev`.
-- **`ERROR 1419` when loading `03_stubs.sql` on a hosted database:** see "Aiven: test this first" in `db/README.md`.
-- **Your local data is a mess:** run `db/01_schema.sql`, `db/02_seed.sql` and `db/03_stubs.sql` again to reset.
+- **Backend won't start:** Confirm that MySQL is running and your local environment variables are configured.
+- **Database connection fails:** Check the database credentials and ensure the database has been created.
+- **API endpoint doesn't respond:** Verify that the backend server is running and check the endpoint against `docs/api.md`.
+
+
