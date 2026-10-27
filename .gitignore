@@ -3,6 +3,7 @@ node_modules/
 
 # secrets: never commit these
 .env
+admin-reports/backend/.env
 *.pem
 
 # build output
